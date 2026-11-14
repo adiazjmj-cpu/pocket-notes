@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Voice notes use the webview's MediaRecorder, which needs the microphone.
+	     Without this string macOS refuses mic access (and under the hardened
+	     runtime it can terminate the app instead of prompting). The OS asks the
+	     user at the first voice-note recording, not at launch. Tauri merges this
+	     file into the generated bundle's Info.plist. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Pocket Notes needs microphone access to record voice notes.</string>
+</dict>
+</plist>
