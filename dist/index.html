@@ -4198,7 +4198,52 @@ $("#importInput").addEventListener("change", e => {
   if (!files.length) return;
   importFiles(files).catch(err => { toast("Import failed: " + (err && err.message ? err.message : err)); });
 });
-$("#importBtn").onclick = () => $("#importInput").click();
+
+/* Desktop import (v37): in Tauri the webview's <input type="file"> does not
+   deliver the selected file — the native dialog opens, the user picks a file,
+   and the input's change event never fires with it, so import silently does
+   nothing. Use Tauri's native Open dialog instead, then read the file through
+   the Rust commands and hand the content to the same importers the browser
+   path uses. In a plain browser this branch is skipped and the file input
+   runs unchanged. */
+async function importViaTauri() {
+  try {
+    const dialog = window.__TAURI__.dialog;
+    const core = window.__TAURI__.core;
+    if (!dialog || !dialog.open || !core || !core.invoke) throw new Error("Tauri dialog unavailable");
+    const picked = await dialog.open({
+      multiple: true,
+      filters: [{ name: "Pocket Notes import", extensions: ["weave", "md", "markdown", "txt", "html", "htm", "zip", "docx", "mht", "mhtml", "csv", "enex", "pdf", "textbundle", "textpack", "bearnote"] }]
+    });
+    const paths = Array.isArray(picked) ? picked : (picked ? [picked] : []);
+    if (!paths.length) return;
+    const files = [];
+    for (const p of paths) {
+      const name = p.split(/[\\/]/).pop() || "file";
+      const lower = name.toLowerCase();
+      try {
+        if (/\.(weave|md|markdown|txt|html?|csv|mht|mhtml|enex)$/.test(lower)) {
+          const text = await core.invoke("read_text_file", { path: p });
+          files.push(new File([text], name, { type: "text/plain" }));
+        } else {
+          const b64 = await core.invoke("read_bytes_file", { path: p });
+          const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+          files.push(new File([bin], name, { type: "application/octet-stream" }));
+        }
+      } catch (e) {
+        toast("Could not read " + name + ": " + (e && e.message ? e.message : e));
+      }
+    }
+    if (!files.length) return;
+    await importFiles(files);
+  } catch (err) {
+    toast("Import failed: " + (err && err.message ? err.message : err));
+  }
+}
+$("#importBtn").onclick = () => {
+  if (window.__TAURI__ && window.__TAURI__.dialog && window.__TAURI__.core) { importViaTauri(); return; }
+  $("#importInput").click();
+};
 
 /* ---------- Export ---------- */
 $("#importReportClose").onclick = () => $("#importReportDlg").close();
@@ -4422,7 +4467,10 @@ function renderHome() {
   $("#hqSticky").onclick = () => newSticky();
   $("#hqPhoto").onclick = () => { if (ensurePageForCapture("Photo note")) $("#photoInput").click(); };
   $("#hqVoice").onclick = () => { if (ensurePageForCapture("Voice note")) toggleVoice(); };
-  $("#hqImport").onclick = () => $("#importInput").click();
+  $("#hqImport").onclick = () => {
+    if (window.__TAURI__ && window.__TAURI__.dialog && window.__TAURI__.core) { importViaTauri(); return; }
+    $("#importInput").click();
+  };
   $$("#homeView [data-hf]").forEach(b => b.onclick = () => { homeFilter = b.dataset.hf; renderHome(); });
   $$("#homeView [data-hl]").forEach(b => b.onclick = () => { homeLayout = b.dataset.hl; renderHome(); });
   $("#homeSortSel").onchange = e => { homeSort = e.target.value; renderHome(); };

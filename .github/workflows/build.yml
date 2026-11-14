@@ -88,23 +88,23 @@ jobs:
           path: src-tauri/target/${{ matrix.target }}/release/bundle/
           if-no-files-found: error
 
-      # Publish this platform's installers to the v36.0.0 GitHub Release.
+      # Publish this platform's installers to the v37.0.0 GitHub Release.
       # Each matrix job uploads only its own platform's files to the same
       # release tag, so the Release ends up with all four installers:
-      #   Pocket Notes_36.0.0_aarch64.dmg (Mac Apple Silicon)
-      #   Pocket Notes_36.0.0_x64.dmg     (Mac Intel)
-      #   Pocket Notes_36.0.0_x64.msi     (Windows)
-      #   Pocket Notes_36.0.0_x64-setup.exe (Windows, NSIS)
+      #   Pocket Notes_37.0.0_aarch64.dmg (Mac Apple Silicon)
+      #   Pocket Notes_37.0.0_x64.dmg     (Mac Intel)
+      #   Pocket Notes_37.0.0_x64.msi     (Windows)
+      #   Pocket Notes_37.0.0_x64-setup.exe (Windows, NSIS)
       # Those release assets are the direct download links the Suite page
       # points at, so nobody has to navigate GitHub to get the app.
-      # The tag name tracks the Cargo version (36.0.0); bump it together.
-      - name: Publish to the v36.0.0 Release
+      # The tag name tracks the Cargo version (37.0.0); bump it together.
+      - name: Publish to the v37.0.0 Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v36.0.0
-          name: Pocket Notes v36.0.0
+          tag_name: v37.0.0
+          name: Pocket Notes v37.0.0
           body: |
-            Pocket Notes v36.0.0 — local-first notes for Mac and Windows.
+            Pocket Notes v37.0.0 — local-first notes for Mac and Windows.
             Download the installer for your computer below. No account, no cloud, no subscription.
           draft: false
           prerelease: false
