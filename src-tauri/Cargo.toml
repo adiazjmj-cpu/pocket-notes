@@ -1,11 +1,11 @@
 [package]
 name = "pocket-notes"
-version = "35.0.0"
+version = "36.0.0"
 description = "Pocket Notes — a notes app that lives on your device."
 edition = "2021"
 rust-version = "1.77"
 
-# The version tracks the Pocket Notes app version (v35 here). When the live
+# The version tracks the Pocket Notes app version (v36 here). When the live
 # pocket-notes.html is updated, bump this to match and copy the new file into
 # dist/index.html (see README.md).
 
