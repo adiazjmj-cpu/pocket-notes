@@ -38,10 +38,26 @@ fn read_bytes_file(path: String) -> Result<String, String> {
 /// notebook .md/.html/.txt) cannot use the anchor in the desktop app. The live
 /// app file routes export through this command when it runs inside Tauri
 /// (it checks `window.__TAURI__` first and falls back to the anchor in a
-/// plain browser). All exports are text, so one text command covers them.
+/// plain browser). Text exports use this command; binary exports (.zip backup,
+/// .docx, .pdf) use save_bytes_file below.
 #[tauri::command]
 fn save_text_file(path: String, contents: String) -> Result<(), String> {
     std::fs::write(&path, contents).map_err(|e| e.to_string())
+}
+
+/// Write binary data to a file at an absolute path the user picked in the
+/// native Save As dialog. The bytes arrive as base64 (the invoke bridge has
+/// no binary type) and are decoded here. This is the binary counterpart of
+/// save_text_file, and it closes the v19 gap: .docx and .pdf export, and the
+/// v38 single-file .zip backup, all go through it in Tauri instead of
+/// falling back to the anchor download.
+#[tauri::command]
+fn save_bytes_file(path: String, contents: String) -> Result<(), String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(contents)
+        .map_err(|e| e.to_string())?;
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())
 }
 
 /// Fetch a URL's HTML as text, for web clips. The desktop shell fetches
@@ -66,7 +82,7 @@ fn fetch_url_text(url: String) -> Result<String, String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![save_text_file, fetch_url_text, read_text_file, read_bytes_file])
+        .invoke_handler(tauri::generate_handler![save_text_file, save_bytes_file, fetch_url_text, read_text_file, read_bytes_file])
         .run(tauri::generate_context!())
         .expect("error while running Pocket Notes");
 }
