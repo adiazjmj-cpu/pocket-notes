@@ -80,7 +80,7 @@ input,textarea,select{font:inherit; color:inherit}
 /* ---- Main ---- */
 #main{flex:1; display:flex; flex-direction:column; min-width:0; background:var(--bg)}
 #topbar{display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid var(--line); background:#fff}
-#menuBtn{display:none; font-size:20px; padding:4px 8px}
+#menuBtn{font-size:20px; padding:4px 8px; color:var(--ink); line-height:1}
 #crumb{flex:1; min-width:0; font-size:15px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 #storeBadge{display:none; flex:none; font-size:11px; font-weight:700; padding:4px 8px; border-radius:6px; background:#FDE8C8; color:#7A4A00; border:1px solid #E8C87A; white-space:nowrap}
 #storeBadge.show{display:inline-block}
@@ -89,12 +89,19 @@ input,textarea,select{font:inherit; color:inherit}
 #crumb b{color:var(--ink)}
 #topbar .tb{padding:8px 12px; border-radius:4px; border:1px solid var(--line); background:#fff; font-size:13px}
 #topbar .tb:hover{border-color:var(--accent); color:var(--accent)}
-#content{flex:1; overflow-y:auto; overscroll-behavior:contain; padding:20px 24px 40px}
-#editorCard{max-width:760px; margin:0 auto; background:var(--card); border:1px solid var(--line);
+#content{flex:1; overflow-y:auto; overscroll-behavior:contain; padding:0 24px 40px}
+/* v38: the content area has no top padding — the views carry their own top
+   margin instead. That matters for the sticky formatting toolbar: with a
+   20px top padding on the scroller, the toolbar's sticky top:0 aligned with
+   the content-box top, below the padding band, and scrolled text showed
+   through in that band above the toolbar. With padding-top 0 the toolbar
+   sticks flush to the visible top. */
+#homeView,#boardView,#calView,#graphView,#emptyState{margin-top:20px}
+#editorCard{max-width:760px; margin:20px auto 0; background:var(--card); border:1px solid var(--line);
   border-radius:0; padding:20px 24px; box-shadow:0 1px 4px rgba(0,0,0,.05)}
 #pageTitle{width:100%; border:none; outline:none; font-size:26px; font-weight:800; padding:4px 0 12px; background:transparent}
 #pageMeta{font-size:13px; color:var(--muted); padding-bottom:12px; border-bottom:1px solid var(--line)}
-#toolbar{display:flex; flex-wrap:wrap; gap:4px; padding:12px 0; border-bottom:1px solid var(--line); position:sticky; top:0; background:#fff; z-index:2}
+#toolbar{display:flex; flex-wrap:wrap; gap:4px; padding:12px 24px; border-bottom:1px solid var(--line); position:sticky; top:0; background:#fff; z-index:2; margin:0 -24px}
 #toolbar button{padding:8px 8px; border-radius:4px; font-size:15px; border:1px solid transparent; flex-shrink:0}
 #toolbar button:hover{background:var(--bg); border-color:var(--line)}
 #toolbar button.on{background:var(--accent-soft); color:var(--accent)}
@@ -153,6 +160,9 @@ input,textarea,select{font:inherit; color:inherit}
 .cal-item{display:block; width:100%; text-align:left; background:#fff; color:var(--accent-dark); border:1px solid var(--line);
   border-radius:6px; padding:4px 4px; margin-top:4px; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 #graphCanvas{width:100%; height:520px; background:#fff; border:1px solid var(--line); border-radius:8px; touch-action:none}
+#graphBar{display:flex; gap:6px; margin-bottom:8px}
+#graphBar button{padding:6px 12px; border-radius:4px; border:1px solid var(--line); background:#fff; font-size:13px}
+#graphBar button.on{background:var(--accent-soft); color:var(--accent); border-color:var(--accent)}
 #graphHint{font-size:13px; color:var(--muted); margin-top:8px}
 
 /* Dialogs */
@@ -298,7 +308,7 @@ button:active{transform:scale(.97)}
   #topbar{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none}
   #topbar::-webkit-scrollbar{display:none}
   /* Formatting toolbar: one scrollable row, not a wrapped ribbon */
-  #toolbar{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; position:static}
+  #toolbar{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; position:static; margin:0 -16px; padding:12px 16px}
   #toolbar::-webkit-scrollbar{display:none}
   /* The sidebar's view tabs move to the bottom bar on mobile */
   #viewTabs{display:none}
@@ -408,6 +418,7 @@ button:focus-visible, a:focus-visible, .page-row:focus-visible, .bcard:focus-vis
       <div id="boardView"></div>
       <div id="calView"></div>
       <div id="graphView">
+        <div id="graphBar"><button id="graphNearBtn" class="on">Nearby</button><button id="graphAllBtn">All pages</button></div>
         <canvas id="graphCanvas"></canvas>
         <div id="graphHint">Tap a node to open that page. Lines are [[links]] between pages.</div>
       </div>
@@ -975,14 +986,30 @@ async function clearAllStorage() {
   }
   location.reload();
 }
+/* v38: one backup, one dialog. The old version fired one Save dialog per
+   notebook 350 ms apart and Tauri dropped every dialog after the first, so
+   only the first notebook was ever backed up — silently. Now every notebook
+   goes into a single .zip (one .weave per notebook, plus a short README)
+   through one Save dialog, and the .zip imports back in (see the .zip branch
+   of importFiles). */
 function exportAllBackup() {
   const nbs = state.notebooks || [];
   if (!nbs.length) { toast("Nothing to back up yet"); return; }
-  nbs.forEach((nb, i) => {
-    const fn = () => download("Pocket Notes backup - " + safeName(nb.name) + ".weave", weaveSerialize(nb), "text/plain;charset=utf-8");
-    if (i === 0) fn(); else setTimeout(fn, i * 350);
+  const date = new Date().toISOString().slice(0, 10);
+  const enc = new TextEncoder();
+  const entries = nbs.map(nb => ({
+    name: "Pocket Notes backup - " + safeName(nb.name) + ".weave",
+    data: enc.encode(weaveSerialize(nb))
+  }));
+  entries.push({ name: "README.txt", data: enc.encode(
+    "Pocket Notes backup — " + date + "\n" +
+    nbs.length + " notebook(s), one .weave file each.\n" +
+    "To restore: open Pocket Notes, tap Open, and choose this .zip — every .weave inside is imported.\n" +
+    "Or unzip it and import the .weave files one by one.\n") });
+  const zip = writeZip(entries);
+  downloadBytes("Pocket Notes backup - " + date + ".zip", zip, "application/zip").then(ok => {
+    if (ok) toast("Backup exported (" + nbs.length + " notebook" + (nbs.length === 1 ? "" : "s") + ", 1 file)");
   });
-  toast("Backup exported (" + nbs.length + " file" + (nbs.length === 1 ? "" : "s") + ")");
 }
 function allPages() {
   const out = [];
@@ -1236,8 +1263,30 @@ function renderBacklinks() {
 }
 
 /* ---------- Editor: toolbar, [[links]], photos ---------- */
+/* v38: keep the caret where it was when a toolbar button is used. Clicking a
+   button blurs the editor and the selection collapses to the start of the
+   page, so the next typed text landed at the top ("BOLD BITThis…"). Two
+   guards: the buttons never take focus (mousedown is cancelled), and the
+   last selection inside the editor is saved and restored before any command
+   runs, so dialogs and file pickers that do steal focus still come back to
+   the right place. */
+let savedRange = null;
+function saveSelection() {
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount && $("#editor").contains(sel.anchorNode)) {
+    savedRange = sel.getRangeAt(0).cloneRange();
+  }
+}
+function restoreSelection() {
+  if (!savedRange) return;
+  const sel = window.getSelection();
+  if (!sel) return;
+  try { sel.removeAllRanges(); sel.addRange(savedRange); } catch (e) { /* stale range — caret stays where focus put it */ }
+}
+["keyup", "mouseup", "blur"].forEach(ev => $("#editor").addEventListener(ev, saveSelection));
+$$("#toolbar button[data-cmd]").forEach(b => b.addEventListener("mousedown", e => e.preventDefault()));
 function execCmd(cmd) {
-  const ed = $("#editor"); ed.focus();
+  const ed = $("#editor"); ed.focus(); restoreSelection();
   if (cmd === "h1" || cmd === "h2") { document.execCommand("formatBlock", false, cmd); }
   else if (cmd === "bullets") { document.execCommand("insertUnorderedList", false, null); }
   else if (cmd === "numbers") { document.execCommand("insertOrderedList", false, null); }
@@ -1609,6 +1658,7 @@ function renderCalendar(cursor) {
 }
 
 let graphNodes = [];
+let graphMode = "near"; /* v38: "near" (open page + its 1-hop neighbours) or "all" */
 function renderGraph() {
   const cv = $("#graphCanvas");
   const dpr = window.devicePixelRatio || 1;
@@ -1617,11 +1667,7 @@ function renderGraph() {
   const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
   const pages = allPages();
-  const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 46;
-  graphNodes = pages.map((x, i) => {
-    const a = (i / Math.max(1, pages.length)) * Math.PI * 2 - Math.PI / 2;
-    return { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), data: x };
-  });
+  if (!pages.length) { ctx.fillStyle = "#888"; ctx.font = "15px sans-serif"; ctx.textAlign = "center"; ctx.fillText("No pages yet — create one to see it here.", w / 2, h / 2); graphNodes = []; return; }
   const byTitle = {};
   pages.forEach(x => byTitle[x.page.title.trim().toLowerCase()] = x.page.id);
   const edges = [];
@@ -1632,6 +1678,48 @@ function renderGraph() {
       if (t && t !== x.page.id) edges.push([x.page.id, t]);
     });
   });
+  /* v38: with a real library the old all-pages ring is an unreadable pile of
+     overlapping labels (78 pages = 4.6° apart, 20-char labels on top of each
+     other). Default is the neighbourhood of the open page — that page in the
+     middle, the pages it links to and the pages linking to it around it.
+     "All pages" keeps the ring, but labels are only drawn when there are few
+     enough to read. */
+  let shown = pages, centreId = null;
+  if (graphMode === "near") {
+    const centre = (currentPageId && findPage(currentPageId)) || pages.slice().sort((a, b) => b.page.updated - a.page.updated)[0];
+    centreId = centre.page.id;
+    const near = new Set([centreId]);
+    edges.forEach(([a, b]) => { if (a === centreId) near.add(b); if (b === centreId) near.add(a); });
+    shown = pages.filter(x => near.has(x.page.id));
+    if (shown.length < 2) {
+      /* No links at all: centre plus the most recently updated pages, so the
+         view is a neighbourhood, not a lonely dot. */
+      const recent = pages.slice().sort((a, b) => b.page.updated - a.page.updated).slice(0, 12);
+      shown = [...new Map([...shown, ...recent].map(x => [x.page.id, x])).values()];
+    }
+    if (shown.length > 25) {
+      /* A hub page with very many neighbours still crowds the ring: keep the
+         centre and the 24 most recently updated neighbours. */
+      const rest = shown.filter(x => x.page.id !== centreId).sort((a, b) => b.page.updated - a.page.updated).slice(0, 24);
+      shown = [pages.find(x => x.page.id === centreId), ...rest];
+    }
+  }
+  const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 46;
+  const showLabels = graphMode === "near" || shown.length <= 24;
+  if (graphMode === "near") {
+    const centre = shown.find(x => x.page.id === centreId) || shown[0];
+    const ring = shown.filter(x => x.page.id !== centre.page.id);
+    graphNodes = [{ x: cx, y: cy, data: centre }];
+    ring.forEach((x, i) => {
+      const a = (i / Math.max(1, ring.length)) * Math.PI * 2 - Math.PI / 2;
+      graphNodes.push({ x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), data: x });
+    });
+  } else {
+    graphNodes = shown.map((x, i) => {
+      const a = (i / Math.max(1, shown.length)) * Math.PI * 2 - Math.PI / 2;
+      return { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), data: x };
+    });
+  }
   const pos = {}; graphNodes.forEach(n => pos[n.data.page.id] = n);
   ctx.strokeStyle = "#E3D3D8"; ctx.lineWidth = 1.4;
   edges.forEach(([a, b]) => {
@@ -1639,15 +1727,26 @@ function renderGraph() {
     ctx.beginPath(); ctx.moveTo(pos[a].x, pos[a].y); ctx.lineTo(pos[b].x, pos[b].y); ctx.stroke();
   });
   graphNodes.forEach(n => {
-    ctx.beginPath(); ctx.arc(n.x, n.y, n.data.page.pinned ? 13 : 10, 0, Math.PI * 2);
+    const isCentre = graphMode === "near" && n.data.page.id === centreId;
+    ctx.beginPath(); ctx.arc(n.x, n.y, isCentre ? 14 : (n.data.page.pinned ? 13 : 10), 0, Math.PI * 2);
     ctx.fillStyle = n.data.nb.color; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = "#fff"; ctx.stroke();
-    ctx.fillStyle = "#333"; ctx.font = "13px -apple-system, sans-serif"; ctx.textAlign = "center";
-    const label = n.data.page.title.length > 20 ? n.data.page.title.slice(0, 19) + "…" : n.data.page.title;
-    ctx.fillText(label, n.x, n.y + 26);
+    if (showLabels) {
+      ctx.fillStyle = "#333"; ctx.font = (isCentre ? "bold " : "") + "13px -apple-system, sans-serif"; ctx.textAlign = "center";
+      const label = n.data.page.title.length > 20 ? n.data.page.title.slice(0, 19) + "…" : n.data.page.title;
+      ctx.fillText(label, n.x, n.y + 26);
+    }
   });
-  if (!pages.length) { ctx.fillStyle = "#888"; ctx.font = "15px sans-serif"; ctx.textAlign = "center"; ctx.fillText("No pages yet — create one to see it here.", cx, cy); }
+  const hint = $("#graphHint");
+  if (hint) hint.textContent = graphMode === "near"
+    ? "Nearby pages — the open page in the middle, linked pages around it. Tap a node to open that page. Lines are [[links]] between pages."
+    : (shown.length > 24 ? "All pages — labels hidden when there are too many to read. Tap a dot to open that page. Lines are [[links]] between pages." : "Tap a node to open that page. Lines are [[links]] between pages.");
+  const nearBtn = $("#graphNearBtn"), allBtn = $("#graphAllBtn");
+  if (nearBtn) nearBtn.classList.toggle("on", graphMode === "near");
+  if (allBtn) allBtn.classList.toggle("on", graphMode === "all");
 }
+$("#graphNearBtn").onclick = () => { graphMode = "near"; renderGraph(); };
+$("#graphAllBtn").onclick = () => { graphMode = "all"; renderGraph(); };
 $("#graphCanvas").addEventListener("click", e => {
   const cv = $("#graphCanvas"), r = cv.getBoundingClientRect();
   const x = e.clientX - r.left, y = e.clientY - r.top;
@@ -3271,9 +3370,9 @@ async function downloadBytes(filename, bytes, mime) {
       const ext = (String(filename).split(".").pop() || "").toLowerCase();
       const path = await window.__TAURI__.dialog.save({ defaultPath: filename, filters: [{ name: "Pocket Notes export", extensions: [ext] }] });
       if (!path) return false;
-      // save_bytes_file is the binary counterpart of save_text_file. It does
-      // not exist in the v18 desktop project yet; if the invoke fails we fall
-      // through to the anchor path below (which works on macOS / in the PWA).
+      // save_bytes_file is the binary counterpart of save_text_file (added in
+      // the v38 desktop shell); if the invoke fails we fall through to the
+      // anchor path below (which works on macOS / in the PWA).
       try {
         let b64 = "";
         const CH = 8192;
@@ -4112,12 +4211,22 @@ async function importFiles(fileList) {
       const lower = f.name.toLowerCase();
       try {
         if (lower.endsWith(".zip")) {
-          // v19: a zip is a TextBundle/TextPack/.bearnote package first, a
-          // Notion export second — isTextBundleZip tells them apart.
+          // v38: a Pocket Notes backup .zip (one .weave per notebook) imports
+          // first; a TextBundle/TextPack/.bearnote package second; a Notion
+          // export third — the entry names tell them apart.
           const buf = await readFileAsArrayBuffer(f);
           let entries = null;
           try { entries = readZip(buf); } catch (e) { entries = null; }
-          if (entries && isTextBundleZip(entries)) {
+          if (entries && entries.some(e => e.name.toLowerCase().endsWith(".weave"))) {
+            report.kind = "backup";
+            let n = 0;
+            for (const e of entries) {
+              if (!e.name.toLowerCase().endsWith(".weave")) continue;
+              importTextFile(e.name, new TextDecoder("utf-8").decode(e.data));
+              n++;
+            }
+            if (n) toast("Backup imported (" + n + " notebook" + (n === 1 ? "" : "s") + ")");
+          } else if (entries && isTextBundleZip(entries)) {
             report.kind = "textbundle";
             await importBundleZip(entries, f.name, report);
           } else {
