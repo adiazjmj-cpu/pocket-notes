@@ -88,24 +88,31 @@ jobs:
           path: src-tauri/target/${{ matrix.target }}/release/bundle/
           if-no-files-found: error
 
-      # Publish this platform's installers to the v38.0.0 GitHub Release.
+      # Publish this platform's installers to the v39.0.0 GitHub Release.
       # Each matrix job uploads only its own platform's files to the same
       # release tag, so the Release ends up with all four installers:
-      #   Pocket Notes_38.0.0_aarch64.dmg (Mac Apple Silicon)
-      #   Pocket Notes_38.0.0_x64.dmg     (Mac Intel)
-      #   Pocket Notes_38.0.0_x64.msi     (Windows)
-      #   Pocket Notes_38.0.0_x64-setup.exe (Windows, NSIS)
+      #   Pocket Notes_39.0.0_aarch64.dmg (Mac Apple Silicon)
+      #   Pocket Notes_39.0.0_x64.dmg     (Mac Intel)
+      #   Pocket Notes_39.0.0_x64.msi     (Windows)
+      #   Pocket Notes_39.0.0_x64-setup.exe (Windows, NSIS)
       # Those release assets are the direct download links the Suite page
       # points at, so nobody has to navigate GitHub to get the app.
-      # The tag name tracks the Cargo version (38.0.0); bump it together.
-      - name: Publish to the v38.0.0 Release
+      # The tag name tracks the Cargo version (39.0.0); bump it together.
+      - name: Publish to the v39.0.0 Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v38.0.0
-          name: Pocket Notes v38.0.0
+          tag_name: v39.0.0
+          name: Pocket Notes v39.0.0
           body: |
-            Pocket Notes v38.0.0 — local-first notes for Mac and Windows.
+            Pocket Notes v39.0.0 — local-first notes for Mac and Windows.
             Download the installer for your computer below. No account, no cloud, no subscription.
+
+            What's new in v39 (from the OneNote comparison):
+            - Created date under the title — every page now shows when it was created, not just when it was last edited, so imported notes keep their true dates.
+            - Named styles — Heading 1, Heading 2, Heading 3, Quote, and Code, from a Style dropdown in the toolbar.
+            - To Do and Important tags — one-click checkbox lines and star-marked lines.
+            - Insert Date and Date+Time stamps — put today's date (or date and time) into a page at the cursor.
+            - Section colour — colour-code a section from the sidebar (already in v38, verified working).
           draft: false
           prerelease: false
           files: |
