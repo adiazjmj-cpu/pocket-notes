@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Pocket Notes</title>
+<title>Pocket Notes v39</title>
 <!-- v17 PWA: lets the app be saved to the home screen on iPhone/iPad (and Android)
      and open full-screen like an app — no App Store, no developer fee. Harmless
      when opened as a plain file: the manifest/icon are just
@@ -104,6 +104,9 @@ input,textarea,select{font:inherit; color:inherit}
 #toolbar{display:flex; flex-wrap:wrap; gap:4px; padding:12px 24px; border-bottom:1px solid var(--line); position:sticky; top:0; background:#fff; z-index:2; margin:0 -24px}
 #toolbar button{padding:8px 8px; border-radius:4px; font-size:15px; border:1px solid transparent; flex-shrink:0}
 #toolbar button:hover{background:var(--bg); border-color:var(--line)}
+/* v39: the Styles dropdown matches the toolbar buttons. */
+#toolbar select{padding:8px 6px; border-radius:4px; font-size:15px; border:1px solid transparent; background:#fff; color:inherit; flex-shrink:0; min-height:40px}
+#toolbar select:hover{background:var(--bg); border-color:var(--line)}
 #toolbar button.on{background:var(--accent-soft); color:var(--accent)}
 #toolbar .sep{width:1px; background:var(--line); margin:4px 4px; flex-shrink:0}
 #editor table, .page-body table{border-collapse:collapse; width:100%; margin:8px 0; font-size:14px}
@@ -113,6 +116,13 @@ input,textarea,select{font:inherit; color:inherit}
 #editor:empty:before{content:"Start writing…  (type [[ to link another page)"; color:#B5AFA4}
 #editor h1{font-size:20px; margin:10px 0 4px}
 #editor h2{font-size:17px; margin:10px 0 4px}
+#editor h3{font-size:15px; margin:10px 0 4px}
+/* v39: Quote and Code block styles (named styles dropdown). */
+#editor blockquote{margin:8px 0 8px 12px; padding:6px 12px; border-left:3px solid var(--accent); color:#5a5348; font-style:italic}
+#editor pre{margin:8px 0; padding:10px 12px; background:#f6f1ea; border:1px solid var(--line); border-radius:6px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px; white-space:pre-wrap; word-break:break-word}
+/* v39: Important tag — star marker + warm highlight on the marked line. */
+#editor .important{background:#fff3cd; border-left:3px solid #e6a817; padding-left:8px}
+#editor .important::before{content:"★ "; color:#b8860b}
 #editor ul,#editor ol{margin:4px 0 4px 22px}
 #editor a.pagelink{color:var(--accent); font-weight:600; text-decoration:none; border-bottom:1px dashed var(--accent)}
 #editor a.pagelink.missing{color:#795e71; border-bottom-color:#795e71}
@@ -396,6 +406,22 @@ button:focus-visible, a:focus-visible, .page-row:focus-visible, .bcard:focus-vis
           <button data-cmd="h1" title="Heading 1">H1</button>
           <button data-cmd="h2" title="Heading 2">H2</button>
           <span class="sep"></span>
+          <select id="styleSelect" title="Paragraph style" aria-label="Paragraph style">
+            <option value="">Style</option>
+            <option value="p">Normal</option>
+            <option value="h1">Heading 1</option>
+            <option value="h2">Heading 2</option>
+            <option value="h3">Heading 3</option>
+            <option value="blockquote">Quote</option>
+            <option value="pre">Code</option>
+          </select>
+          <span class="sep"></span>
+          <button data-cmd="todo" title="To Do — insert a checkbox line">☐ To Do</button>
+          <button data-cmd="important" title="Important — mark this line ★">★ Important</button>
+          <span class="sep"></span>
+          <button data-cmd="stampDate" title="Insert today's date">Date</button>
+          <button data-cmd="stampDateTime" title="Insert date and time">Date+Time</button>
+          <span class="sep"></span>
           <button data-cmd="bullets" title="Bullet list">• List</button>
           <button data-cmd="numbers" title="Numbered list">1. List</button>
           <button data-cmd="task" title="Checklist"><span data-ic="task" data-size="18"><svg class="ic" viewBox="0 0 32 32" width="18" height="18" shape-rendering="crispEdges" aria-hidden="true"><rect x="6" y="6" width="20" height="20" fill="#FFF8E7" stroke="#1c1c1e" stroke-width="2"/><polygon points="11,16 14,19 21,11 23,13 14,22 9,18" fill="#587158"/></svg></span> Task</button>
@@ -634,6 +660,9 @@ function textColor(hex) {
 }
 const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, {month:"short", day:"numeric", year:"numeric"});
 const fmtTime = ts => new Date(ts).toLocaleTimeString(undefined, {hour:"numeric", minute:"2-digit"});
+/* v39: long date for the time-stamp insert, e.g. "Sunday, November 15, 2026". */
+const fmtLongDate = ts => new Date(ts).toLocaleDateString(undefined, {weekday:"long", year:"numeric", month:"long", day:"numeric"});
+const APP_VERSION = "39"; /* v39 */
 
 /* ---- Retro icon set: coloured old-computer icons ----
    Every icon is drawn on a 32x32 pixel grid — flat fills, a dark outline,
@@ -1167,7 +1196,9 @@ function currentFound() { return currentPageId ? findPage(currentPageId) : null;
 function renderMeta() {
   const f = currentFound(); if (!f) return;
   const p = f.page;
-  $("#pageMeta").textContent = `Updated ${fmtDate(p.updated)} · ${fmtTime(p.updated)} · ${wordCount(p.body)} words · ${p.clips.length} clip${p.clips.length === 1 ? "" : "s"} · Saved ✓`;
+  /* v39: show the creation date under the title, next to the updated date. */
+  const created = p.created || p.updated;
+  $("#pageMeta").textContent = `Created ${fmtDate(created)} · ${fmtTime(created)} · Updated ${fmtDate(p.updated)} · ${fmtTime(p.updated)} · ${wordCount(p.body)} words · ${p.clips.length} clip${p.clips.length === 1 ? "" : "s"} · Saved ✓`;
   $("#pinBtn").innerHTML = (p.pinned ? ic("pin",18)+" Pinned" : ic("pin",18)+" Pin");
 }
 let saveTimer = null;
@@ -1293,6 +1324,15 @@ function execCmd(cmd) {
   else if (cmd === "task") {
     document.execCommand("insertHTML", false, '<ul><li class="task"><input type="checkbox"> </li></ul>');
   }
+  /* v39: To Do tag — a checkbox line at the cursor (OneNote-style tag). */
+  else if (cmd === "todo") {
+    document.execCommand("insertHTML", false, '<ul><li class="task"><input type="checkbox"> </li></ul>');
+  }
+  /* v39: Important tag — star + highlight on the current line. */
+  else if (cmd === "important") { toggleImportant(); }
+  /* v39: Time Stamp — today's date, or date + time, at the cursor. */
+  else if (cmd === "stampDate") { document.execCommand("insertText", false, fmtLongDate(Date.now())); }
+  else if (cmd === "stampDateTime") { document.execCommand("insertText", false, fmtLongDate(Date.now()) + " " + fmtTime(Date.now())); }
   else if (cmd === "hilite") { document.execCommand("hiliteColor", false, "#fdf0c8"); }
   else if (cmd === "linkpage") { insertLinkPrompt(); return; }
   else if (cmd === "photo") { $("#photoInput").click(); return; }
@@ -1304,6 +1344,39 @@ function execCmd(cmd) {
   scheduleSave();
 }
 $$("#toolbar button[data-cmd]").forEach(b => b.onclick = () => execCmd(b.dataset.cmd));
+
+/* v39: named styles dropdown — applies a block style to the current paragraph.
+   No mousedown prevention here (unlike the buttons): cancelling mousedown on
+   a <select> stops the native dropdown opening in Chrome. The editor's blur
+   listener saves the selection, and the change handler restores it before
+   applying the style, so the caret still lands back in the right place. */
+const styleSel = $("#styleSelect");
+if (styleSel) {
+  styleSel.addEventListener("change", () => {
+    const v = styleSel.value; if (!v) return;
+    const ed = $("#editor"); ed.focus(); restoreSelection();
+    document.execCommand("formatBlock", false, v);
+    styleSel.value = "";
+    scheduleSave();
+  });
+}
+/* v39: Important tag — toggles a star/highlight class on the current block.
+   The class lives in the saved HTML, so it survives reload and .weave export. */
+function toggleImportant() {
+  const ed = $("#editor"); ed.focus(); restoreSelection();
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !sel.anchorNode) return;
+  let block = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+  while (block && block !== ed && !/^(P|H1|H2|H3|LI|BLOCKQUOTE|PRE|DIV)$/.test(block.tagName)) block = block.parentElement;
+  if (!block || block === ed) {
+    document.execCommand("formatBlock", false, "p");
+    const s2 = window.getSelection();
+    if (!s2 || !s2.rangeCount || !s2.anchorNode) return;
+    block = s2.anchorNode.nodeType === 3 ? s2.anchorNode.parentElement : s2.anchorNode;
+    if (!block || block === ed) return;
+  }
+  block.classList.toggle("important");
+}
 
 function insertLinkPrompt() {
   $("#linkTitles").innerHTML = allPages().map(x => `<option value="${esc(x.page.title)}">`).join("");
@@ -2056,6 +2129,11 @@ function weaveParse(text) {
           else if (k === "tags") cur.page.tags = v.split(",").map(s => s.trim()).filter(Boolean);
           else if (k === "pinned") cur.page.pinned = v === "true";
           else if (k === "updated") { const t = Date.parse(v); if (!isNaN(t)) cur.page.updated = t; }
+          /* v39: honour a per-page created: date (same as updated:), so the
+             Created line under the title shows the page's real creation date
+             for imported pages — e.g. a ColorNote backup .weave. Without it
+             the page falls back to its updated date in renderMeta. */
+          else if (k === "created") { const t = Date.parse(v); if (!isNaN(t)) cur.page.created = t; }
           else cur.page.extra[k] = v;
         }
         i++;
